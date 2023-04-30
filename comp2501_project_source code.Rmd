@@ -1,0 +1,305 @@
+---
+title: "project_analysis"
+output: html_document
+date: "2023-04-17"
+---
+https://www.researchgate.net/figure/Annual-mean-temperatures-in-Hong-Kong-between-1990-and-2008_fig8_231175855
+
+
+Import libraries
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+library(cowplot)
+```
+
+Load csvs
+```{r}
+forecast <- read.csv('forecast.csv')
+actual <- read.csv('HKO_present.csv')
+```
+
+Data summary
+```{r}
+str(forecast)
+str(actual)
+```
+
+head test
+```{r}
+forecast_head <- head(forecast)
+actual_head <- head(actual)
+
+head_joined <- inner_join(forecast_head, actual_head, by = c("Year" = "Year", "X1day"="Day", "X1month"="Month")) |> select('Year', 'X1day', 'X1month', 'X1low', 'X1high', 'HKO...MAX', 'HKO...MIN')
+```
+
+a) 1 day HKO temp range
+i) accuracy
+```{r}
+day_temp_hko <- inner_join(forecast, actual, by = c("Year" = "Year", "X1day"="Day", "X1month"="Month")) |> select('Year', 'X1day', 'X1month', 'X1low', 'X1high', 'HKO...MAX', 'HKO...MIN')
+
+
+day_hko_max_me <- (1 / nrow(day_temp_hko)) * sum(day_temp_hko$X1high - day_temp_hko$HKO...MAX)
+day_hko_min_me <- (1 / nrow(day_temp_hko)) * sum(day_temp_hko$X1low - day_temp_hko$HKO...MIN)
+
+day_hko_max_rmse <- sqrt((1 / nrow(day_temp_hko))*sum((day_temp_hko$X1high - day_temp_hko$HKO...MAX)^2))
+day_hko_min_rmse <- sqrt((1 / nrow(day_temp_hko))*sum((day_temp_hko$X1low - day_temp_hko$HKO...MIN)^2))
+```
+
+ii) graphs
+```{r}
+day_temp_hko <- day_temp_hko |> mutate(date = make_date(Year, X1month, X1day)) |> mutate(h_diff = X1high - HKO...MAX, l_diff = X1low - HKO...MIN, t_diff = X1high + X1low - HKO...MAX - HKO...MIN)
+
+day_high_hko <- day_temp_hko |> ggplot(aes(x = date, y = h_diff, fill = h_diff > 0))+ geom_bar(stat = "identity") + labs(title = "Difference between 1 day forecast and HKO recorded maximum temperature", y = "Absolute difference", x = "Date") + theme(legend.position = "none", axis.line = element_line(color='black'),
+    plot.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank()) + scale_y_continuous(breaks= scales::pretty_breaks())
+
+day_low_hko <- day_temp_hko |> ggplot(aes(x = date, y = l_diff, fill = l_diff > 0))+ geom_bar(stat = "identity") + labs(title = "Difference between 1 day forecast and HKO recorded minimum temperature", y = "Absolute difference", x = "Date") + theme(legend.position = "none", axis.line = element_line(color='black'),
+    plot.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank()) + scale_y_continuous(breaks= scales::pretty_breaks())
+
+day_totaltemp_hko <- day_temp_hko |> ggplot(aes(x = date, y = t_diff, fill = t_diff > 0))+ geom_bar(stat = "identity") + labs(title = "Total difference between 1 day forecast and HKO recorded temperature range", y = "Absolute difference", x = "Date") + theme(legend.position = "none", axis.line = element_line(color='black'),
+    plot.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank()) + scale_y_continuous(breaks= scales::pretty_breaks())
+
+day_high_hko
+day_low_hko
+day_totaltemp_hko
+plot_grid(day_high_hko, day_low_hko, day_totaltemp_hko, allign = "v", ncol = 1)
+```
+
+seasonality
+```{r, out.width=100%}
+forecast_data <- tibble("Date" = day_temp_hko$date, "Difference" = day_temp_hko$t_diff)
+plot(forecast_data)
+
+
+
+forecast_data$month <- month(ymd(forecast_data$Date))
+
+p <- boxplot(Difference ~ month, data=forecast_data, boxwex = 0.8, col = "deepskyblue3", names = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
+p
+x_labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+p2 <-  ggplot(forecast_data, aes(x=month, y=Difference, group = month)) + 
+  geom_boxplot(fill = "deepskyblue3") + stat_summary(fun.y=mean, geom="point", shape=4, size=4) + scale_x_continuous(breaks = seq(1,12, 1), labels = x_labels) + labs(title = "Absolute temperature difference between forecast and recorded per month")
+p2
+```
+
+
+b) 7 day temperature range
+```{r}
+week_temp_hko <- inner_join(forecast, actual, by = c("Year" = "Year", "X7day"="Day", "X7month"="Month")) |> select('Year', 'X7day', 'X7month', 'X7low', 'X7high', 'HKO...MAX', 'HKO...MIN')
+
+
+week_hko_max_me <- (1 / nrow(week_temp_hko)) * sum(week_temp_hko$X7high - week_temp_hko$HKO...MAX)
+week_hko_min_me <- (1 / nrow(week_temp_hko)) * sum(week_temp_hko$X7low - week_temp_hko$HKO...MIN)
+
+week_hko_max_rmse <- sqrt((1 / nrow(week_temp_hko))*sum((week_temp_hko$X7high - week_temp_hko$HKO...MAX)^2))
+week_hko_min_rmse <- sqrt((1 / nrow(week_temp_hko))*sum((week_temp_hko$X7low - week_temp_hko$HKO...MIN)^2))
+```
+
+
+
+```{r}
+week_temp_hko <- week_temp_hko |> mutate(date = make_date(Year, X7month, X7day)) |> mutate(h_diff = X7high - HKO...MAX, l_diff = X7low - HKO...MIN, t_diff = X7high + X7low - HKO...MAX - HKO...MIN)
+```
+
+```{r}
+forecast_data2 <- tibble("Date" = week_temp_hko$date, "Difference" = week_temp_hko$t_diff)
+
+forecast_data2$month <- month(ymd(forecast_data2$Date))
+
+```
+
+
+```{r}
+forecast_data$days <- 1
+forecast_data2$days <- 7
+forecast_data2dup <- forecast_data2
+
+names(forecast_data2dup) <- names(forecast_data)
+temp_comb <- rbind(forecast_data, forecast_data2dup)
+
+temp_comb$month = as.character(temp_comb$month)
+temp_comb$days = as.character(temp_comb$days)
+```
+
+```{r}
+temp_comb$month <- factor(temp_comb$month , levels=c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"))
+
+p3 <-  ggplot(temp_comb, aes(x=month, y=Difference, fill = days)) + 
+  geom_boxplot(position=position_dodge(1)) + scale_x_discrete(breaks = seq(1,12, 1), labels = x_labels) + labs(title = "1 vs 7 days Absolute temperature difference between forecast and recorded per month")
+p3
+
+```
+
+```{r}
+df1 <- day_temp_hko |> group_by(Year, X1month) |> mutate(mean = mean(t_diff))
+max_temp <- tibble("Date" = day_temp_hko$date, "Temp" = day_temp_hko$HKO...MAX)
+
+```
+
+
+
+```{r}
+band1 <- day_temp_hko |> ggplot(aes(x = date)) +
+  geom_ribbon(aes(ymin = X1low, ymax = X1high), fill = "grey70") +
+  geom_line(aes(y = HKO...MAX), color = "firebrick1") +
+  geom_line(aes(y = HKO...MIN), color = "royalblue3") +
+  labs(y = "Temperature", x = "Date", title = "1 day forecasted vs recorded max and min temperature") +
+  theme_classic()
+```
+
+
+```{r}
+join_temp <- inner_join(day_temp_hko, forecast, by = c("Year" = "Year", "X1month" = "X7month", "X1day" = "X7day")) 
+join_temp <- join_temp |> mutate("daydiff" = (X1low.x + X1high.x - HKO...MAX - HKO...MIN), "weekdiff" = (X7low + X7high - HKO...MAX - HKO...MIN))
+join_temp <- join_temp |> select('Year', 'X1day', 'X1month', 'date', 'daydiff', 'weekdiff') |> subset(X1day %in% c(1, 8, 15, 23, 30))
+```
+
+```{r}
+shrunk <- join_temp |> group_by(Year, X1month) |> summarise (m1l = mean(X1low.x), m1h = mean(X1high.x), m7l = mean(X7low), m7h = mean(X7high), ml = mean(HKO...MIN), mh = mean(HKO...MAX)) |> as.data.frame()
+
+
+```
+
+
+
+
+
+
+```{r}
+compare_day_week <- join_temp |> ggplot() +
+  geom_line(aes(x = date, y = X7low), color = "pink") +
+  geom_line(aes(x = date, y = X1low.x), color = "palevioletred2") +
+  geom_line(aes(x = date, y = HKO...MIN), color = "tomato3") +
+  labs(y = "Temperature")
+
+compare_day_week2 <- join_temp |> ggplot() +
+  geom_line(aes(x = date, y = X7high), color = "lightblue") +
+  geom_line(aes(x = date, y = X1high.x), color = "deepskyblue") +
+  geom_line(aes(x = date, y = HKO...MAX), color = "royalblue4") 
+
+compare_day_week
+compare_day_week2
+```
+
+```{r}
+diff_temp_plot <- join_temp |> ggplot() +
+  geom_line(aes(x = date, y = daydiff), color = "deepskyblue") +
+  geom_line(aes(x = date, y = weekdiff), color = "royalblue4") +
+  labs(title = "Absolute difference between 7 days and 1 day forecast from recorded", y = "Temperature Difference", x = "Date") +
+  geom_hline(yintercept = 0, linetype="dashed", color="grey50") +
+  scale_color_manual(values = c("1 day", "7 days")) + theme_classic()
+
+
+diff_temp_plot
+```
+
+```{r}
+join_rf <- inner_join(forecast, actual, by = c("Year" = "Year", "X1day"="Day", "X1month"="Month")) |> select('Year', 'X1day', 'X1month', 'X1rf','X7rf', 'HKO...RF') |> mutate(date = make_date(Year, X1month, X1day)) 
+join_rf$HKO...RF[join_rf$HKO...RF == 'Trace'] <- '0.1'
+join_rf$HKO...RF <- as.numeric(as.character(join_rf$HKO...RF))
+```
+
+```{r}
+
+grouped <- join_rf |> group_by(X1rf) |> summarise(number = n(), count = sum(HKO...RF > 10)) |> mutate("Perceetage" = count / number)
+grouped2 <- join_rf |> group_by(X7rf) |> summarise(number = n(), count = sum(HKO...RF > 10)) |> mutate("Perceetage" = count / number)
+
+grouped3 <- join_rf |> group_by(X1rf) |> summarise(number = n(), count = sum(HKO...RF > 0)) |> mutate("Perceetage" = count / number)
+grouped4 <- join_rf |> group_by(X7rf) |> summarise(number = n(), count = sum(HKO...RF > 0)) |> mutate("Perceetage" = count / number)
+
+```
+
+
+```{r}
+library(ggridges)
+join_rf <- join_rf |> mutate(X1rf = fct_relevel(X1rf, levels = "Low", "Medium Low", "Medium", "Medium High", "High"))
+p4 <- join_rf |> ggplot(aes(HKO...RF,  y = X1rf, fill = X1rf)) + geom_density_ridges(jittered_points = TRUE, position = position_points_jitter(width=0.5, height = 0), point_shape = "|", point_size = 2, alpha = 0.7) +
+  theme_ridges() +
+  theme(legend.position = "none") + labs(title = "1 Day Forecasted rainfall probability vs recorded rainfalls")
+join_rf <- join_rf |> mutate(X7rf = fct_relevel(X7rf, levels = "Low", "Medium Low", "Medium", "Medium High", "High"))
+p5 <- join_rf |> ggplot(aes(HKO...RF,  y = X7rf, fill = X7rf)) + geom_density_ridges(jittered_points = TRUE, position = position_points_jitter(width=0.5, height = 0), point_shape = "|", point_size = 2, alpha = 0.7) +
+  theme_ridges() +
+  theme(legend.position = "none") + labs(title = "7 Days Forecasted rainfall probability vs recorded rainfalls")
+```
+
+```{r}
+probs <- data.frame(forecast = c("High", "Medium High", "Medium", "Medium Low", "Low"),p = c(0.70, 0.55, 0.45, 0.30, 0))
+
+new_join_rf <- inner_join(join_rf,probs, by = c("X1rf" = "forecast"))
+new_join_rf$bool <- ifelse(new_join_rf$HKO...RF > 0, 1, 0)
+
+brier1 = sum((new_join_rf$p - new_join_rf$bool)^2) / nrow(new_join_rf)
+
+new_join_rf2 <- inner_join(join_rf,probs, by = c("X7rf" = "forecast"))
+new_join_rf2$bool <- ifelse(new_join_rf$HKO...RF > 0, 1, 0)
+
+brier2 = sum((new_join_rf2$p - new_join_rf2$bool)^2) / nrow(new_join_rf2)
+```
+
+```{r}
+sr = head(join_temp, 86)
+ser = tail(join_temp, 22)
+
+```
+
+
+```{r}
+aggregate_rf <- inner_join(forecast, actual, by = c("Year" = "Year", "X1month" = "Month", "X1day" = "Day")) |> select(c("Year", "X1month", "X1day", "X1rf", "HKO...RF"))
+aggregate_rf2 <- inner_join(aggregate_rf, forecast, by = c("Year" = "Year", "X1month" = "X7month", "X1day" = "X7day")) |> select(c("Year", "X1month", "X1day", "X1rf.x", "X7rf", "HKO...RF"))
+aggregate_rf2[aggregate_rf2 == "Trace"] <- "0.1"
+aggregate_rf2$HKO...RF <- as.numeric(aggregate_rf2$HKO...RF)
+aggregate_rf2 <- aggregate_rf2 |> mutate(X1rf.x = fct_relevel(X1rf.x, levels = "Low", "Medium Low", "Medium", "Medium High", "High"), X7rf = fct_relevel(X7rf, levels = "Low", "Medium Low", "Medium", "Medium High", "High"))
+
+```
+
+```{r}
+part1 <- aggregate_rf2 |> group_by(X1rf.x, X7rf) |> mutate(mean = mean(HKO...RF))
+part2 <- aggregate_rf2 |> group_by(X1rf.x, X7rf) |> summarise(count = n()) 
+combine12 <- inner_join(part1, part2, by = (c("X1rf.x" = "X1rf.x", "X7rf" = "X7rf")))
+tile <- combine12 |> ggplot(aes(x = X1rf.x, y = X7rf, fill = mean)) + geom_tile() +
+  scale_fill_gradient(low = "lightblue", high = "midnightblue") + theme_classic() + labs(x = "1 day forecast", y = "7 days forecast", title = "Mean rainfall for each combination of forecasts") + geom_text(aes(label = count), size = 4, check_overlap = TRUE, color = "black")
+tile
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
